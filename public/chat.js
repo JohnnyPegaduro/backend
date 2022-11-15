@@ -14,37 +14,21 @@ let actions = document.getElementById("actions");
 //! Al cliquear en SEND, se enviará un mensaje al servidor con el evento chat:message, y luego se limpiará el input message
 
 btn.addEventListener("click", () => {
-  //TODO ver de normalizar
-
-  const data = {
-    id: "1",
-    messages: [{
-      author: {
-        id: email.value,
-        name: name.value,
-        lastname: lastname.value,
-        age: age.value,
-        alias: alias.value,
-        avatar: avatar.value,
-      },
-      text: message.value,
-      date: new Date().toLocaleString(),
-    }, ],
+  const messages = {
+    id: 1000,
+    author: {
+      id: email.value,
+      name: name.value,
+      lastname: lastname.value,
+      age: age.value,
+      alias: alias.value,
+      avatar: avatar.value,
+    },
+    text: message.value,
+    date: new Date().toLocaleString(),
   };
 
-  const authorSchema = new schema.Entity()
-  const messageSchema = new schema.Entity("messages");
-  const postSchema = new schema.Entity("posts", {
-    authors: authorSchema,
-    text: [messageSchema],
-  });
-
-  const arrNorm = normalize(data, postSchema);
-
-  socket.emit(
-    "chat:message",
-    arrNorm
-  );
+  socket.emit("chat:message", messages); // TODO CHAT MESSAGE FRONT
   message.value = "";
   message.focus();
   return false;
@@ -53,17 +37,19 @@ btn.addEventListener("click", () => {
 //! El input message escucha al evento keypress(escribiendo) para crear el evento chat:typing
 
 message.addEventListener("keypress", () => {
+  //TODO CHAT TYPING FRONT
   socket.emit("chat:typing", username.value);
 });
 
 //! Luego de enviar mensaje por el chat, se limpiará el actions (muestra el evento chat:typing) y se renderizará el chat, obteniendo por data un Array de mensajes con el evento chat:messages
 
 socket.on("chat:history", (data) => {
+  // TODO CHAT HISTORY FRONT
   actions.innerHTML = " ";
   output.innerHTML = data
     .map(
       (user) =>
-      `<p>
+        `<p>
     <strong class="message-user">${user.username} <span class="message-date">[ ${user.date} ]</span></strong>: <span class="message-txt">${user.message}</span>
     </p>`
     )
@@ -76,3 +62,36 @@ socket.on("chat:history", (data) => {
 socket.on("chat:typing", (data) => {
   actions.innerHTML = `<p></em>${data} Está escribiendo... </p>`;
 });
+
+/*
+const authorSchema = new schema.Entity("authors");
+const commentsSchema = new schema.Entity("comments", {
+  commenter: authorSchema,
+});
+const posts = new schema.Entity("posts", {
+  author: authorSchema,
+  messages: [commentsSchema],
+});
+const messages = new schema.Entity("messages", {
+  messages: [posts],
+});
+const normalizedMsg = normalize(data, messages);
+console.log("NORMALIZED", normalizedMsg, "NORMALIZED");
+console.log("INSPECT", util.inspect(normalizedMsg, false, 7, true), "INSPECT");
+const denormalizedMsg = denormalize(
+  normalizedMsg.result,
+  messages,
+  normalizedMsg.entities
+);
+console.log("DENORMALIZED", denormalizedMsg, "DENORMALIZED");
+console.log(
+  "INSPECT",
+  util.inspect(denormalizedMsg, false, 7, true),
+  "INSPECT"
+);
+const filterMsg = messagesDatabase.filter(({messages}) => messages);
+const filterInArray = filterMsg.map(
+  (i) => ` AUTOR >> ${i.messages[0].author.alias}; MENSAJE >> ${i.messages[0].text}`
+);
+console.log(util.inspect(filterInArray, false, 6, true));
+*/

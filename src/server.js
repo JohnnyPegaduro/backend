@@ -1,8 +1,8 @@
 import app from "./app.js";
+//! NORMALIZE
+import { normalize, schema } from "normalizr";
 //! WEBSOCKETS
-import {
-    Server as WebSocketServer
-} from "socket.io";
+import { Server as WebSocketServer } from "socket.io";
 import http from "http";
 const server = http.createServer(app);
 const io = new WebSocketServer(server);
@@ -18,57 +18,67 @@ const DBmsg = new Messages("chat");
 //! STARTING SERVER
 
 server.listen(app.get("port"), () => {
-    console.log(`Express Server connected on port ${app.get("port")}`);
+  console.log(`Express Server connected on port ${app.get("port")}`);
 });
 
 //! ERROR HANDLER
 
 server.on("error", (error) => {
-    console.log(`Error !!!: ${error}`);
+  console.log(`Error !!!: ${error}`);
 });
 
 io.on("connection", async (socket) => {
-    //! Nueva conexión
-    console.log(`New Connection: ${socket.id}`);
+  //! Nueva conexión
+  console.log(`New Connection: ${socket.id}`);
 
-    //! PRODUCTOS
+  //! PRODUCTOS
 
+  const products = await DBprod.getAll();
+  socket.emit("product:all", products);
+
+  //! Guardar producto
+  socket.on("product:new", async (object) => {
+    const data = await DBprod.save(object);
     const products = await DBprod.getAll();
-    socket.emit("product:all", products);
+    data === null
+      ? socket.emit("product:submit", { product: object, status: true })
+      : socket.emit("product:submit", { product: object, status: false });
+    io.sockets.emit("product:all", products);
+  });
 
-    //! Guardar producto
-    socket.on("product:new", async (object) => {
-        const data = await DBprod.save(object);
-        const products = await DBprod.getAll();
-        data === null ?
-            socket.emit("product:submit", {
-                product: object,
-                status: true
-            }) :
-            socket.emit("product:submit", {
-                product: object,
-                status: false
-            });
-        io.sockets.emit("product:all", products);
+  //! CHAT
+
+  //! El evento chat:messages iniciará enviando el array existente al cliente
+  const allMessages = await DBmsg.readMessages();
+  socket.emit("chat:history", allMessages); //TODO CHAT HISTORY BACK
+
+  //! Se escucha el evento chat:message, se guarda el mensaje recibido por el cliente y se emite un mensaje general con el array Messages actualizado a todos los sockets conectados y por conectarse
+
+  socket.on("chat:message", async (data) => {
+    //TODO CHAT MESSAGE BACK
+
+    const authorSchema = new schema.Entity("authors");
+    const commentsSchema = new schema.Entity("comments", {
+      commenter: authorSchema,
+    });
+    const posts = new schema.Entity("posts", {
+      author: authorSchema,
+      messages: [commentsSchema],
+    });
+    const messages = new schema.Entity("messages", {
+      messages: [posts],
     });
 
-    //! CHAT
+    const normalizedMsg = normalize(data, messages);
 
-    //! El evento chat:messages iniciará enviando el array existente al cliente
-    const allMessages = await DBmsg.readMessages();
-    socket.emit("chat:history", allMessages);
+    const allMessages = await DBmsg.saveMessage(normalizedMsg);
+    io.sockets.emit("chat:history", allMessages);
+  });
 
-    //! Se escucha el evento chat:message, se guarda el mensaje recibido por el cliente y se emite un mensaje general con el array Messages actualizado a todos los sockets conectados y por conectarse
+  //! Se escucha el evento chat:typing y se emite un mensaje a todos los sockets conectados, excepto al que "está escribiendo..." con el método broadcast
 
-    socket.on("chat:message", async (data) => {
-        console.log(data, "data on server backend")
-        const allMessages = await DBmsg.saveMessage(data);
-        io.sockets.emit("chat:history", allMessages);
-    });
-
-    //! Se escucha el evento chat:typing y se emite un mensaje a todos los sockets conectados, excepto al que "está escribiendo..." con el método broadcast
-
-    socket.on("chat:typing", (data) => {
-        socket.broadcast.emit("chat:typing", data);
-    });
+  socket.on("chat:typing", (data) => {
+    // TODO CHAT TYPING BACK
+    socket.broadcast.emit("chat:typing", data);
+  });
 });
